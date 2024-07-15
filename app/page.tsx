@@ -259,7 +259,7 @@ export default function Home() {
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-         Twitch Chat of {currentChannel || '...'}
+         Twitch Chat of {currentChannel || '...'} {getEmoji(messages[messages.length - 1]?.sentiment) || ''}
       </h1>
       <p className="leading-7">
         Once upon a time, in a far-off land, there was a very lazy king who
@@ -270,7 +270,7 @@ export default function Home() {
       <div className="flex flex-col lg:flex-row">
         <div className="lg:w-1/2 lg:pr-2">
           <iframe
-            className="w-full h-96 border border-gray-300 rounded"
+            className="w-full h-96 rounded-lg border bg-card text-card-foreground shadow-sm"
             src={`https://player.twitch.tv/?channel=${currentChannel}&parent=localhost&parent=feelsmoodman.chat&muted=true`}
             title="Twitch Player"
           ></iframe>
@@ -281,21 +281,25 @@ export default function Home() {
         </div>
 
         <div className="lg:w-1/2 lg:pl-2 mt-4 lg:mt-0">
-          <div className="min-w-50 p-2 border border-gray-300 rounded bg-white h-96 overflow-y-auto resize-y">
-            {messages.slice(0).reverse().map((msg, index) => (
-              <p key={index} className={getColor(msg.sentiment)}>
-                {!ready || messages.length === 0 ? 'Loading...' : (
-                  <>
-                    {getEmoji(msg.sentiment)}{' '}
-                    <span className="font-bold">{msg.author}: </span>
-                    {msg.text}{' '}
-                    {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
-                      <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
-                    )}
-                  </>
-                )}
-              </p>
-            ))}
+          <div className="min-w-50 space-y-0 rounded-lg border bg-card text-card-foreground shadow-sm h-96 p-6 overflow-y-auto">
+            {!ready || messages.length === 0 ? (
+              <p className="p-6">Building the text classification model in your browser...</p>
+            ) : (
+              <>
+                {messages.slice(-100).reverse().map((msg, index) => (
+                  <p key={index} className={getColor(msg.sentiment)}>
+                    <>
+                      {getEmoji(msg.sentiment)}{' '}
+                      <span className="font-bold">{msg.author}: </span>
+                      {msg.text}{' '}
+                      {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
+                        <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
+                      )}
+                    </>
+                  </p>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </div>
