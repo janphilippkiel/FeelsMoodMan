@@ -21,31 +21,31 @@ import {
 } from "@/components/ui/chart"
 
 const chartConfig = {
-  baseline: {
-    label: "Baseline",
+  previous: {
+    label: "Previous",
     color: "hsl(var(--chart-1))",
   },
   current: {
-    label: "Current Stream",
+    label: "Current",
     color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig
 
 interface EmotionRadarChartProps {
-  data: { emotion: string, baseline: number, current: number }[];
+  data: { emotion: string, previous: number, current: number }[];
 }
 
 export function EmotionRadarChart(props: EmotionRadarChartProps) {
   const { data } = props;
 
-  console.log(data);
+  // console.log(data);
 
   return (
     <Card>
       <CardHeader className="items-center pb-4">
-        <CardTitle>Radar Chart - Legend</CardTitle>
+        <CardTitle>Emotion Radar Chart</CardTitle>
         <CardDescription>
-          Showing total visitors for the last 6 months
+          Showing emotions counted by category
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -67,8 +67,8 @@ export function EmotionRadarChart(props: EmotionRadarChartProps) {
             <PolarAngleAxis dataKey="emotion" />
             <PolarGrid />
             <Radar
-              dataKey="baseline"
-              fill="var(--color-baseline)"
+              dataKey="previous"
+              fill="var(--color-previous)"
               fillOpacity={0.6}
             />
             <Radar dataKey="current" fill="var(--color-current)" />

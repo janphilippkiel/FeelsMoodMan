@@ -19,6 +19,22 @@ class PipelineSingleton {
     }
 }
 
+import { emoteData } from '../utils/emotes';
+
+// Utility function to escape special characters in a string for use in a regular expression
+const escapeRegExp = (string: string): string => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+  
+  export const replaceEmotes = (input: string): string => {
+    let output = input;
+    emoteData.forEach(emote => {
+      const regex = new RegExp(`\\b${escapeRegExp(emote.Emote)}\\b`, 'g');
+      output = output.replace(regex, `[${emote.Description}]`);
+    });
+    return output;
+  };
+
 // Initial Twitch bot configuration
 let opts: any = {
     identity: {
@@ -42,7 +58,7 @@ const connectToTwitch = (channel: string): void => {
         let classifier = await PipelineSingleton.getInstance();
 
         // Perform the classification
-        let output = await classifier(msg.trim());
+        let output = await classifier(replaceEmotes(msg.trim()));
         // console.log(output[0])
 
         // Send the output back to the main thread
