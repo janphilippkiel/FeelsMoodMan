@@ -5,12 +5,15 @@ import { useState, useEffect, useRef } from 'react';
 import { EngagementAreaChart } from '@/components/engagement-area-chart';
 import { EmotionRadarChart } from '@/components/emotion-radar-chart';
 import { analyzeEmotions } from '@/utils/analytics';
+import { Badge } from "@/components/ui/badge"
 
 interface StreamData {
   viewerCount: number;
   gameName: string;
   startedAt: string;
   uptimeInSeconds: number;
+  userName: string;
+  tags: string[];
 }
 
 interface Message {
@@ -37,6 +40,8 @@ export default function Home() {
     gameName: '',
     startedAt: '',
     uptimeInSeconds: 0,
+    userName: '',
+    tags: [],
   });
 
   // Create a reference to the worker object
@@ -152,7 +157,7 @@ export default function Home() {
 
         // Update stream data
         if (data.data.length > 0) {
-          const { viewer_count, game_name, started_at } = data.data[0];
+          const { viewer_count, game_name, started_at, user_name, tags } = data.data[0];
 
           // Set stream data
           setStreamData((prevStreamData) => ({
@@ -160,6 +165,8 @@ export default function Home() {
             viewerCount: viewer_count,
             gameName: game_name,
             startedAt: started_at,
+            userName: user_name,
+            tags: tags,
           }));
 
           // Start updating uptime every second
@@ -170,6 +177,8 @@ export default function Home() {
             gameName: '',
             startedAt: '',
             uptimeInSeconds: 0,
+            userName: '',
+            tags: [],
           });
         }
       } catch (error) {
@@ -259,13 +268,25 @@ export default function Home() {
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-         Twitch Chat of {currentChannel || '...'} {getEmoji(messages[messages.length - 1]?.sentiment) || ''}
+        Twitch Chat of {streamData.userName || '...'} {getEmoji(messages[messages.length - 1]?.sentiment) || ''}
       </h1>
-      <p className="leading-7">
+      {streamData.gameName && streamData.tags && (
+        <div className="flex flex-wrap">
+          <Badge className="mr-2 mb-2">
+            {streamData.gameName}
+          </Badge>
+          {streamData.tags.map((tag, index) => (
+            <Badge key={index} variant="outline" className="mr-2 mb-2">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {/* <p className="leading-7">
         Once upon a time, in a far-off land, there was a very lazy king who
         spent all day lounging on his throne. One day, his advisors came to him
         with a problem: the kingdom was running out of money.
-      </p>
+      </p> */}
 
       <div className="flex flex-col lg:flex-row">
         <div className="lg:w-1/2 lg:pr-2">
