@@ -70,8 +70,16 @@ export function EmotionRadarChart(props: EmotionRadarChartProps) {
               dataKey="previous"
               fill="var(--color-previous)"
               fillOpacity={0.6}
+              stroke="var(--color-previous)"
+              strokeWidth={2}
             />
-            <Radar dataKey="current" fill="var(--color-current)" />
+            <Radar
+              dataKey="current"
+              fill="var(--color-current)"
+              fillOpacity={0.6}
+              stroke="var(--color-current)"
+              strokeWidth={2}
+            />
             <ChartLegend className="mt-8" content={<ChartLegendContent />} />
           </RadarChart>
         </ChartContainer>

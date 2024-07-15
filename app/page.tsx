@@ -1,121 +1,313 @@
-'use client'
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+// import { useParams } from 'next/navigation';
+import { EngagementAreaChart } from '@/components/engagement-area-chart';
+import { EmotionRadarChart } from '@/components/emotion-radar-chart';
+import { analyzeEmotions } from '@/utils/analytics';
+
+interface StreamData {
+  viewerCount: number;
+  gameName: string;
+  startedAt: string;
+  uptimeInSeconds: number;
+}
+
+interface Message {
+  author: string;
+  text: string;
+  sentiment: string;
+  score: number;
+}
 
 export default function Home() {
+  // HINT: Unforturnately can't export SPA with dynamic params yet
+  // See: https://github.com/vercel/next.js/discussions/55393
+  // [channel]/page.tsx
+  // const { channel } = useParams<{ channel: string }>();
+  const [currentChannel, setCurrentChannel] = useState<string | null>(null);
+
+  // Track classification result and model loading status
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [ready, setReady] = useState<boolean | null>(null);
+
+  // State to hold current stream data
+  const [streamData, setStreamData] = useState<StreamData>({
+    viewerCount: 0,
+    gameName: '',
+    startedAt: '',
+    uptimeInSeconds: 0,
+  });
+
+  // Create a reference to the worker object
+  const worker = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    // This runs only on the client side
+    const params = new URLSearchParams(window.location.search);
+    const channel = params.get('channel');
+    
+    if (channel && !worker.current) {
+      setCurrentChannel(channel);
+
+      // Create the worker if it does not yet exist
+      worker.current = new Worker(new URL('./worker.tsx', import.meta.url), {
+        type: 'module',
+      });
+
+      // Callback function for messages from worker thread
+      const onMessageReceived = (e: MessageEvent) => {
+        switch (e.data.status) {
+          case 'initiate':
+            setReady(false);
+            break;
+          case 'connected':
+            console.log(e.data.message);
+            break;
+          case 'complete':
+            setMessages((prevMessages) => [
+              ...prevMessages,
+              {
+                author: e.data.author,
+                text: e.data.message,
+                sentiment: e.data.sentiment.label,
+                score: e.data.sentiment.score,
+              },
+            ]);
+            setReady(true);
+            break;
+        }
+      };
+
+      // Attach callback as event listener
+      worker.current.addEventListener('message', onMessageReceived);
+
+      // Send channel name to worker
+      worker.current.postMessage({ type: 'setChannel', channel });
+
+      // Cleanup function when component unmounts
+      // Seems to break the Twitch API calls
+    //   return () => {
+    //     if (worker.current) {
+    //       worker.current.removeEventListener('message', onMessageReceived);
+    //       worker.current.terminate();
+    //       worker.current = null;
+    //     }
+    //   };
+    }
+
+    // Fetch Twitch credentials
+    const fetchAccessToken = async () => {
+      try {
+        const tokenUrl = 'https://id.twitch.tv/oauth2/token';
+
+        const response = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            client_id: process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || '',
+            client_secret: process.env.NEXT_PUBLIC_TWITCH_CLIENT_SECRET || '',
+            grant_type: 'client_credentials',
+          }).toString(),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to obtain Twitch access token');
+        }
+
+        const data = await response.json();
+        const accessToken = data.access_token;
+
+        // Fetch Twitch stream data using access token
+        fetchTwitchStreams(accessToken);
+
+        // Poll Twitch stream data every 30 seconds
+        setInterval(() => {
+          fetchTwitchStreams(accessToken);
+        }, 30000);
+      } catch (error) {
+        console.error('Error fetching Twitch access token:', error);
+        // Handle errors
+      }
+    };
+
+    // Fetch Twitch stream data
+    const fetchTwitchStreams = async (accessToken: string) => {
+      try {
+        const url = `https://api.twitch.tv/helix/streams?user_login=${currentChannel}`;
+        const response = await fetch(url, {
+          headers: {
+            'Client-ID': process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || '',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch Twitch streams');
+        }
+
+        const data = await response.json();
+
+        // Update stream data
+        if (data.data.length > 0) {
+          const { viewer_count, game_name, started_at } = data.data[0];
+
+          // Set stream data
+          setStreamData((prevStreamData) => ({
+            ...prevStreamData,
+            viewerCount: viewer_count,
+            gameName: game_name,
+            startedAt: started_at,
+          }));
+
+          // Start updating uptime every second
+          startUptimeUpdater(started_at);
+        } else {
+          setStreamData({
+            viewerCount: 0,
+            gameName: '',
+            startedAt: '',
+            uptimeInSeconds: 0,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching Twitch streams:', error);
+        // Handle errors
+      }
+    };
+
+    // Start updating uptime
+    const startUptimeUpdater = (startedAt: string) => {
+      const interval = setInterval(() => {
+        const startedTime = new Date(startedAt).getTime();
+        const currentTime = Date.now();
+        const uptimeInSeconds = Math.floor((currentTime - startedTime) / 1000);
+
+        setStreamData((prevStreamData) => ({
+          ...prevStreamData,
+          uptimeInSeconds: uptimeInSeconds,
+        }));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    };
+
+    if (currentChannel) {
+      fetchAccessToken();
+    }
+  }, [currentChannel]); // Dependency array includes currentChannel to re-run effect if currentChannel changes
+
+  // Get color based on sentiment
+  const getColor = (sentiment: string) => {
+    switch (sentiment) {
+      case 'joy':
+        return 'text-green-600';
+      case 'anger':
+        return 'text-red-600';
+      case 'sadness':
+        return 'text-blue-600';
+      case 'fear':
+        return 'text-orange-600';
+      case 'disgust':
+        return 'text-yellow-600';
+      case 'surprise':
+        return 'text-purple-600';
+      case 'neutral':
+        return 'text-gray-600';
+      default:
+        return 'text-black';
+    }
+  };
+
+  // Get emoji based on sentiment
+  const getEmoji = (sentiment: string) => {
+    switch (sentiment) {
+      case 'joy':
+        return '😀';
+      case 'anger':
+        return '🤬';
+      case 'sadness':
+        return '😭';
+      case 'fear':
+        return '😨';
+      case 'disgust':
+        return '🤢';
+      case 'surprise':
+        return '😲';
+      case 'neutral':
+        return '😐';
+      default:
+        return '';
+    }
+  };
+
+  // Format uptime to HH:MM:SS
+  const formatUptime = (uptimeInSeconds: number) => {
+    const hours = Math.floor(uptimeInSeconds / 3600);
+    const minutes = Math.floor((uptimeInSeconds % 3600) / 60);
+    const seconds = uptimeInSeconds % 60;
+
+    const formattedHours = hours.toString().padStart(2, '0');
+    const formattedMinutes = minutes.toString().padStart(2, '0');
+    const formattedSeconds = seconds.toString().padStart(2, '0');
+
+    return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+  };
+
   return (
-    <main className="container grid items-center pb-8 pt-6 md:py-10">
+    <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-        The Joke Tax Chronicles
+         Twitch Chat of {currentChannel || '...'}
       </h1>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
+      <p className="leading-7">
         Once upon a time, in a far-off land, there was a very lazy king who
         spent all day lounging on his throne. One day, his advisors came to him
         with a problem: the kingdom was running out of money.
       </p>
-      <h2 className="mt-10 scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight transition-colors first:mt-0">
-        The King's Plan
-      </h2>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        The king thought long and hard, and finally came up with{" "}
-        <a
-          href="#"
-          className="font-medium text-primary underline underline-offset-4"
-        >
-          a brilliant plan
-        </a>
-        : he would tax the jokes in the kingdom.
-      </p>
-      <blockquote className="mt-6 border-l-2 pl-6 italic">
-        "After all," he said, "everyone enjoys a good joke, so it's only fair
-        that they should pay for the privilege."
-      </blockquote>
-      <h3 className="mt-8 scroll-m-20 text-2xl font-semibold tracking-tight">
-        The Joke Tax
-      </h3>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        The king's subjects were not amused. They grumbled and complained, but
-        the king was firm:
-      </p>
-      <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
-        <li>1st level of puns: 5 gold coins</li>
-        <li>2nd level of jokes: 10 gold coins</li>
-        <li>3rd level of one-liners : 20 gold coins</li>
-      </ul>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        As a result, people stopped telling jokes, and the kingdom fell into a
-        gloom. But there was one person who refused to let the king's
-        foolishness get him down: a court jester named Jokester.
-      </p>
-      <h3 className="mt-8 scroll-m-20 text-2xl font-semibold tracking-tight">
-        Jokester's Revolt
-      </h3>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        Jokester began sneaking into the castle in the middle of the night and
-        leaving jokes all over the place: under the king's pillow, in his soup,
-        even in the royal toilet. The king was furious, but he couldn't seem to
-        stop Jokester.
-      </p>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        And then, one day, the people of the kingdom discovered that the jokes
-        left by Jokester were so funny that they couldn't help but laugh. And
-        once they started laughing, they couldn't stop.
-      </p>
-      <h3 className="mt-8 scroll-m-20 text-2xl font-semibold tracking-tight">
-        The People's Rebellion
-      </h3>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        The people of the kingdom, feeling uplifted by the laughter, started to
-        tell jokes and puns again, and soon the entire kingdom was in on the
-        joke.
-      </p>
-      <div className="my-6 w-full overflow-y-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="m-0 border-t p-0 even:bg-muted">
-              <th className="border px-4 py-2 text-left font-bold [&[align=center]]:text-center [&[align=right]]:text-right">
-                King's Treasury
-              </th>
-              <th className="border px-4 py-2 text-left font-bold [&[align=center]]:text-center [&[align=right]]:text-right">
-                People's happiness
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="m-0 border-t p-0 even:bg-muted">
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Empty
-              </td>
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Overflowing
-              </td>
-            </tr>
-            <tr className="m-0 border-t p-0 even:bg-muted">
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Modest
-              </td>
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Satisfied
-              </td>
-            </tr>
-            <tr className="m-0 border-t p-0 even:bg-muted">
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Full
-              </td>
-              <td className="border px-4 py-2 text-left [&[align=center]]:text-center [&[align=right]]:text-right">
-                Ecstatic
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+      <div className="flex flex-col lg:flex-row">
+        <div className="lg:w-1/2 lg:pr-2">
+          <iframe
+            className="w-full h-96 border border-gray-300 rounded"
+            src={`https://player.twitch.tv/?channel=${currentChannel}&parent=localhost&parent=feelsmoodman.chat&muted=true`}
+            title="Twitch Player"
+          ></iframe>
+          <div className="mt-4 flex justify-between">
+            <span className="text-left">Currently streaming {streamData.gameName} for {streamData.viewerCount} viewers.</span>
+            <span className="text-right" title={'Live since ' + new Date(streamData.startedAt).toLocaleString()}>Uptime: {formatUptime(streamData.uptimeInSeconds)}</span>
+          </div>
+        </div>
+
+        <div className="lg:w-1/2 lg:pl-2 mt-4 lg:mt-0">
+          <div className="min-w-50 p-2 border border-gray-300 rounded bg-white h-96 overflow-y-auto resize-y">
+            {messages.slice(0).reverse().map((msg, index) => (
+              <p key={index} className={getColor(msg.sentiment)}>
+                {!ready || messages.length === 0 ? 'Loading...' : (
+                  <>
+                    {getEmoji(msg.sentiment)}{' '}
+                    <span className="font-bold">{msg.author}: </span>
+                    {msg.text}{' '}
+                    {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
+                      <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
+                    )}
+                  </>
+                )}
+              </p>
+            ))}
+          </div>
+        </div>
       </div>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        The king, seeing how much happier his subjects were, realized the error
-        of his ways and repealed the joke tax. Jokester was declared a hero, and
-        the kingdom lived happily ever after.
-      </p>
-      <p className="leading-7 [&:not(:first-child)]:mt-6">
-        The moral of the story is: never underestimate the power of a good laugh
-        and always be careful of bad ideas.
-      </p>
+
+      <div className="flex flex-col lg:flex-row mt-4">
+        <div className="lg:w-2/3 lg:pr-2">
+          <EngagementAreaChart />
+        </div>
+        <div className="lg:w-1/3 lg:pl-2 mt-4 lg:mt-0">
+          <EmotionRadarChart data={analyzeEmotions(messages)} />
+        </div>
+      </div>
     </main>
-  )
+  );
 }

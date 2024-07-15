@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Icons } from "@/components/icons";
@@ -10,12 +10,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export function SiteHeader() {
   const [searchInput, setSearchInput] = useState("");
-  const router = useRouter();
+  // const router = useRouter();
 
   const handleSearchSubmit = (e: { preventDefault: () => void; }) => {
     e.preventDefault();
     if (searchInput.trim()) {
-      router.push(`/${searchInput}`);
+      // router.push(`?channel=${searchInput}`);
+      window.location.href = `?channel=${searchInput}`;
     }
   };
 
