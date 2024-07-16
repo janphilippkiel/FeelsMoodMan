@@ -51,7 +51,7 @@ export default function Home() {
     // This runs only on the client side
     const params = new URLSearchParams(window.location.search);
     const channel = params.get('channel');
-    
+
     if (channel && !worker.current) {
       setCurrentChannel(channel);
 
@@ -92,13 +92,13 @@ export default function Home() {
 
       // Cleanup function when component unmounts
       // Seems to break the Twitch API calls
-    //   return () => {
-    //     if (worker.current) {
-    //       worker.current.removeEventListener('message', onMessageReceived);
-    //       worker.current.terminate();
-    //       worker.current = null;
-    //     }
-    //   };
+      // return () => {
+      //   if (worker.current) {
+      //     worker.current.removeEventListener('message', onMessageReceived);
+      //     worker.current.terminate();
+      //     worker.current = null;
+      //   }
+      // };
     }
 
     // Fetch Twitch credentials
@@ -208,6 +208,16 @@ export default function Home() {
     }
   }, [currentChannel]); // Dependency array includes currentChannel to re-run effect if currentChannel changes
 
+  // Track the last non-neutral emotion
+  const [lastNonNeutralSentiment, setLastNonNeutralSentiment] = useState('neutral');
+
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.sentiment !== 'neutral') {
+      setLastNonNeutralSentiment(lastMessage.sentiment);
+    }
+  }, [messages]);
+
   // Get color based on sentiment
   const getColor = (sentiment: string) => {
     switch (sentiment) {
@@ -246,7 +256,7 @@ export default function Home() {
       case 'surprise':
         return '😲';
       case 'neutral':
-        return '😐';
+        return '🫥';
       default:
         return '';
     }
@@ -265,10 +275,28 @@ export default function Home() {
     return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
   };
 
+  // Render landing page if currentChannel is not set
+  if (!currentChannel) {
+    return (
+      <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
+        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          Welcome to the Twitch Chat Viewer
+        </h1>
+        <p className="leading-7">
+          Please provide a channel name in the URL to view the chat and stream details.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-        Twitch Chat of {streamData.userName || '...'} {getEmoji(messages[messages.length - 1]?.sentiment) || ''}
+        Twitch Chat of {streamData.userName || '...'}{' '}
+        {messages[messages.length - 1]?.sentiment !== 'neutral' 
+          ? getEmoji(messages[messages.length - 1]?.sentiment) 
+          : getEmoji(lastNonNeutralSentiment)
+        }
       </h1>
       {streamData.gameName && streamData.tags && (
         <div className="flex flex-wrap">
