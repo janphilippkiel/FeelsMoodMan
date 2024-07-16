@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import { EngagementAreaChart } from '@/components/engagement-area-chart';
 import { EmotionRadarChart } from '@/components/emotion-radar-chart';
 import { analyzeEmotions } from '@/utils/analytics';
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/components/ui/badge";
+import { channel } from 'process';
 
 interface StreamData {
   viewerCount: number;
@@ -24,7 +25,7 @@ interface Message {
 }
 
 export default function Home() {
-  // HINT: Unforturnately can't export SPA with dynamic params yet
+  // HINT: Unfortunately can't export SPA with dynamic params yet
   // See: https://github.com/vercel/next.js/discussions/55393
   // [channel]/page.tsx
   // const { channel } = useParams<{ channel: string }>();
@@ -43,6 +44,10 @@ export default function Home() {
     userName: '',
     tags: [],
   });
+
+  // State to track if the stream is offline or loading
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Create a reference to the worker object
   const worker = useRef<Worker | null>(null);
@@ -169,9 +174,15 @@ export default function Home() {
             tags: tags,
           }));
 
+          // Set the stream status to online
+          setIsOffline(false);
+
           // Start updating uptime every second
           startUptimeUpdater(started_at);
         } else {
+          // Set the stream status to offline
+          setIsOffline(true);
+
           setStreamData({
             viewerCount: 0,
             gameName: '',
@@ -181,9 +192,13 @@ export default function Home() {
             tags: [],
           });
         }
+
+        // Set loading to false after fetching stream data
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching Twitch streams:', error);
         // Handle errors
+        setIsLoading(false);
       }
     };
 
@@ -289,6 +304,31 @@ export default function Home() {
     );
   }
 
+  // Render loading message while fetching stream data
+  if (isLoading) {
+    return (
+      <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
+        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          Loading stream data...
+        </h1>
+      </main>
+    );
+  }
+
+  // Render error page if stream is offline
+  if (isOffline) {
+    return (
+      <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
+        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          The stream of {currentChannel} is currently offline.
+        </h1>
+        <p className="leading-7">
+          Please check back later or try a different channel.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
@@ -310,11 +350,6 @@ export default function Home() {
           ))}
         </div>
       )}
-      {/* <p className="leading-7">
-        Once upon a time, in a far-off land, there was a very lazy king who
-        spent all day lounging on his throne. One day, his advisors came to him
-        with a problem: the kingdom was running out of money.
-      </p> */}
 
       <div className="flex flex-col lg:flex-row">
         <div className="lg:w-1/2 lg:pr-2">
