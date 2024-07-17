@@ -332,31 +332,15 @@ export default function Home() {
           Measuring Emotions in Twitch Livestreams
         </h1>
         <p className="leading-7">
-          Welcome to FeelsMoodMan, a comprehensive tool designed for streamers, viewers, and analysts to gain insights into <a href="https://www.twitch.tv/directory" className="font-medium text-primary underline underline-offset-4" target="_blank">Twitch</a> streams and chat interactions. This tool provides real-time emotion analysis to help you understand and engage with your Twitch audience better.
+          Welcome to FeelsGoodMan, a prototype providing real-time emotion analysis of <a href="https://www.twitch.tv/directory" className="font-medium text-primary underline underline-offset-4" target="_blank">Twitch</a> chats to gain insights into viewer engagement.
         </p>
         <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
           Features
         </h2>
         <ul className="ml-6 list-disc">
-          <li>Sentiment Analysis: Get an immediate sense of the chat's mood with our sentiment analysis, categorizing messages into emotions such as joy, anger, sadness, fear, disgust, surprise, and neutral.</li>
-          <li>Engagement Tracking: Track chat activity over time to see when your audience is most engaged.</li>
-          <li>Emoji Representation: Visual representation of emotions with corresponding emojis for a quick and intuitive understanding.</li>
+          <li>Sentiment Analysis: Get an immediate sense of the audience's mood with our sentiment analysis, categorizing messages into 6 basic emotions.</li>
+          <li>Engagement Metrics: Track chat activity over time to see when your audience is most engaged.</li>
         </ul>
-        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
-          Model
-        </h2>
-        <p className="leading-7">
-          We utilize the <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base/" className="font-medium text-primary underline underline-offset-4" target="_blank">Emotion English DistilRoBERTa-base</a> model to classify emotions in English text data extracted from Twitch chat messages. This model predicts Ekman's 6 basic emotions, plus a neutral class: anger 🤬, disgust 🤢, fear 😨, joy 😀, neutral 😐, sadness 😭, and surprise 😲. It is a fine-tuned checkpoint of <a href="https://huggingface.co/distilroberta-base" className="font-medium text-primary underline underline-offset-4" target="_blank">DistilRoBERTa-base</a> trained on a diverse collection of text types from Twitter, Reddit, student self-reports, and utterances from TV dialogues.
-        </p>
-        <p className="leading-7">
-          To enhance our analysis, we replace Twitch emotes in messages before classification. For example, an emote like "4Head" would be replaced with "[laughing face with a wide grin]" for sentiment analysis.
-        </p>
-        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
-          Architecture
-        </h2>
-        <p className="leading-7">
-          Due to the large volume of chat messages, we opted for a client-side approach using <a href="https://huggingface.co/docs/transformers.js/index" className="font-medium text-primary underline underline-offset-4" target="_blank">Transformers.js</a> to run the model directly in the browser. We implemented this prototype as a <a href="https://nextjs.org/" className="font-medium text-primary underline underline-offset-4" target="_blank">Next.js</a> client-only Single Page Application (SPA). It integrates with Twitch chat using <a href="https://tmijs.com/" target="_blank">tmi.js</a> for real-time IRC connection in the browser. Frontend components are predominantly sourced from <a href="https://ui.shadcn.com/" target="_blank">shadcn/ui</a>, and <a href="https://recharts.org/" target="_blank">Recharts</a> is used for data visualization.
-        </p>
         <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
           Usage
         </h2>
@@ -402,7 +386,29 @@ export default function Home() {
             </div>
           </>
         )}
-
+        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Model
+        </h2>
+        <p className="leading-7">
+          We utilize the <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base/" className="font-medium text-primary underline underline-offset-4" target="_blank">Emotion English DistilRoBERTa-base</a> model to classify emotions in Twitch chat messages. This model predicts Ekman's 6 basic emotions, plus a neutral class:</p>
+          <ul className="">
+            <li>🤬 anger</li>
+            <li>🤢 disgust</li>
+            <li>😨 fear</li>
+            <li>😀 joy</li>
+            <li>😐 neutral</li>
+            <li>😭 sadness</li>
+            <li>😲 surprise</li>
+          </ul>
+        <p className="leading-7">  
+          This fine-tuned checkpoint of <a href="https://huggingface.co/distilroberta-base" className="font-medium text-primary underline underline-offset-4" target="_blank">DistilRoBERTa-base</a> has been trained on a diverse collection of text types from Twitter, Reddit, student self-reports, and TV dialogues. To further enhance our analysis, we replace Twitch emotes (an integral part of the sentiment) in messages before classification. For example, an emote like "4Head" would be replaced with "[laughing face with a wide grin]".
+        </p>
+        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Architecture
+        </h2>
+        <p className="leading-7">
+          Due to the large volume of chat messages, we opted for a client-side approach using <a href="https://huggingface.co/docs/transformers.js/index" className="font-medium text-primary underline underline-offset-4" target="_blank">Transformers.js</a> to run the model directly in the browser. We implemented this prototype as a <a href="https://nextjs.org/" className="font-medium text-primary underline underline-offset-4" target="_blank">Next.js</a> client-only Single Page Application (SPA). It integrates with Twitch chat using <a href="https://tmijs.com/" target="_blank">tmi.js</a> for real-time IRC connection in the browser. Frontend components are predominantly sourced from <a href="https://ui.shadcn.com/" target="_blank">shadcn/ui</a>, and <a href="https://recharts.org/" target="_blank">Recharts</a> is used for data visualization.
+        </p>
         <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
           Use Cases
         </h2>
