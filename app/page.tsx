@@ -29,6 +29,11 @@ interface Message {
   text: string;
   sentiment: string;
   score: number;
+  timestamp: number;
+  date: Date;
+  subscriber: boolean;
+  firstMessage: boolean;
+  returningChatter: boolean;
 }
 
 export default function Home() {
@@ -80,6 +85,7 @@ export default function Home() {
 
       // Callback function for messages from worker thread
       const onMessageReceived = (e: MessageEvent) => {
+        console.log(e.data);
         switch (e.data.status) {
           case 'initiate':
             setReady(false);
@@ -95,6 +101,11 @@ export default function Home() {
                 text: e.data.message,
                 sentiment: e.data.sentiment.label,
                 score: e.data.sentiment.score,
+                date: e.data.date,
+                timestamp: e.data.timestamp,
+                subscriber: e.data.subscriber,
+                firstMessage: e.data.firstMessage,
+                returningChatter: e.data.returningChatter,
               },
             ]);
             setReady(true);
@@ -508,6 +519,7 @@ export default function Home() {
                 {messages.slice(-100).reverse().map((msg, index) => (
                   <p key={index} className={getColor(msg.sentiment)}>
                     <>
+                      [{msg.date.toLocaleTimeString('de-DE', { hour: 'numeric', minute: 'numeric'})}]{' '}
                       {getEmoji(msg.sentiment)}{' '}
                       <span className="font-bold">{msg.author}: </span>
                       {msg.text}{' '}

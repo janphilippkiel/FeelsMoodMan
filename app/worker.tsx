@@ -20,6 +20,7 @@ class PipelineSingleton {
 }
 
 import { emoteData } from '../utils/emotes';
+import { timeStamp } from "console";
 
 // Utility function to escape special characters in a string for use in a regular expression
 const escapeRegExp = (string: string): string => {
@@ -53,6 +54,7 @@ const connectToTwitch = (channel: string): void => {
 
     client.on('message', async (target: string, context: any, msg: string, self: boolean) => {
         if (self) { return; } // Ignore messages from the bot
+        // console.log(context);
 
         // Retrieve the classification pipeline
         let classifier = await PipelineSingleton.getInstance();
@@ -64,9 +66,14 @@ const connectToTwitch = (channel: string): void => {
         // Send the output back to the main thread
         globalThis.postMessage({
             status: 'complete',
-            author: context.username,
+            author: context['display-name'],
             message: msg.trim(),
-            sentiment: output[0]
+            sentiment: output[0],
+            date: new Date(Number(context['tmi-sent-ts'])),
+            timestamp: context['tmi-sent-ts'],  // UNIX timestamp in this format "1721242110578"
+            subscriber: context['subscriber'],
+            firstMessage: context['first-msg'],
+            returningChatter: context['returning-chatter'],
         });
     });
 
