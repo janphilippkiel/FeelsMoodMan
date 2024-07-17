@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from "react";
-// import { useRouter } from "next/navigation";
-import { buttonVariants } from "@/components/ui/button";
-import { Icons } from "@/components/icons";
-import { Input } from "@/components/ui/input";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { buttonVariants } from "@/components/ui/button"
+import { Icons } from "@/components/icons"
+import Image from 'next/image';
+import { Input } from "@/components/ui/input"
+import { ThemeToggle } from "@/components/theme-toggle"
 
-export function SiteHeader() {
+export function Header() {
   const [searchInput, setSearchInput] = useState("");
-  // const router = useRouter();
 
   const handleSearchSubmit = (e: { preventDefault: () => void; }) => {
     e.preventDefault();
@@ -24,7 +23,12 @@ export function SiteHeader() {
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
         <div className="flex gap-6 md:gap-10">
           <a href="/" className="flex items-center space-x-2">
-            <Icons.smile className="h-6 w-6" />
+            <Image
+              src="/apple-touch-icon.png"
+              width={20}
+              height={20}
+              alt="smiling frog face indicating happiness"
+            />
             <span className="inline-block font-bold">FeelsMoodMan</span>
           </a>
           <form onSubmit={handleSearchSubmit} className="ml-auto flex-1 sm:flex-initial">
@@ -59,5 +63,5 @@ export function SiteHeader() {
         </div>
       </div>
     </header>
-  );
+  )
 }

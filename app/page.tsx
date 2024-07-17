@@ -6,7 +6,14 @@ import { EngagementAreaChart } from '@/components/engagement-area-chart';
 import { EmotionRadarChart } from '@/components/emotion-radar-chart';
 import { analyzeEmotions } from '@/utils/analytics';
 import { Badge } from "@/components/ui/badge";
-import { channel } from 'process';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface StreamData {
   viewerCount: number;
@@ -48,6 +55,12 @@ export default function Home() {
   // State to track if the stream is offline or loading
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // State to hold top 10 streams data
+  const [topStreams, setTopStreams] = useState<StreamData[]>([]);
+
+  // State to hold the Twitch access token
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   // Create a reference to the worker object
   const worker = useRef<Worker | null>(null);
@@ -129,99 +142,120 @@ export default function Home() {
 
         const data = await response.json();
         const accessToken = data.access_token;
+        setAccessToken(accessToken);
 
-        // Fetch Twitch stream data using access token
-        fetchTwitchStreams(accessToken);
-
-        // Poll Twitch stream data every 30 seconds
-        setInterval(() => {
-          fetchTwitchStreams(accessToken);
-        }, 30000);
       } catch (error) {
         console.error('Error fetching Twitch access token:', error);
         // Handle errors
       }
     };
 
-    // Fetch Twitch stream data
-    const fetchTwitchStreams = async (accessToken: string) => {
-      try {
-        const url = `https://api.twitch.tv/helix/streams?user_login=${currentChannel}`;
-        const response = await fetch(url, {
-          headers: {
-            'Client-ID': process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || '',
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+    fetchAccessToken();
+  }, []);
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch Twitch streams');
-        }
+  useEffect(() => {
+    if (accessToken) {
+      const fetchTwitchStreams = async (user_login?: string) => {
+        try {
+          let url = 'https://api.twitch.tv/helix/streams';
+          if (user_login) {
+            url += `?user_login=${user_login}`;
+          } else {
+            url += '?language=en';
+          }
 
-        const data = await response.json();
-
-        // Update stream data
-        if (data.data.length > 0) {
-          const { viewer_count, game_name, started_at, user_name, tags } = data.data[0];
-
-          // Set stream data
-          setStreamData((prevStreamData) => ({
-            ...prevStreamData,
-            viewerCount: viewer_count,
-            gameName: game_name,
-            startedAt: started_at,
-            userName: user_name,
-            tags: tags,
-          }));
-
-          // Set the stream status to online
-          setIsOffline(false);
-
-          // Start updating uptime every second
-          startUptimeUpdater(started_at);
-        } else {
-          // Set the stream status to offline
-          setIsOffline(true);
-
-          setStreamData({
-            viewerCount: 0,
-            gameName: '',
-            startedAt: '',
-            uptimeInSeconds: 0,
-            userName: '',
-            tags: [],
+          const response = await fetch(url, {
+            headers: {
+              'Client-ID': process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || '',
+              Authorization: `Bearer ${accessToken}`,
+            },
           });
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch Twitch streams');
+          }
+
+          const data = await response.json();
+
+          // Update stream data
+          if (user_login) {
+            if (data.data.length > 0) {
+              const { viewer_count, game_name, started_at, user_name, tags } = data.data[0];
+
+              // Set stream data
+              setStreamData((prevStreamData) => ({
+                ...prevStreamData,
+                viewerCount: viewer_count,
+                gameName: game_name,
+                startedAt: started_at,
+                userName: user_name,
+                tags: tags,
+              }));
+
+              // Set the stream status to online
+              setIsOffline(false);
+
+              // Start updating uptime every second
+              startUptimeUpdater(started_at);
+            } else {
+              // Set the stream status to offline
+              setIsOffline(true);
+
+              setStreamData({
+                viewerCount: 0,
+                gameName: '',
+                startedAt: '',
+                uptimeInSeconds: 0,
+                userName: '',
+                tags: [],
+              });
+            }
+          } else {
+            // Set top streams data
+            const topStreamsData = data.data.map((stream: any) => ({
+              viewerCount: stream.viewer_count,
+              gameName: stream.game_name,
+              startedAt: stream.started_at,
+              uptimeInSeconds: Math.floor((Date.now() - new Date(stream.started_at).getTime()) / 1000),
+              userName: stream.user_name,
+              tags: stream.tags,
+            }));
+            setTopStreams(topStreamsData);
+          }
+
+          // Set loading to false after fetching stream data
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error fetching Twitch streams:', error);
+          // Handle errors
+          setIsLoading(false);
         }
+      };
 
-        // Set loading to false after fetching stream data
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching Twitch streams:', error);
-        // Handle errors
-        setIsLoading(false);
+      if (currentChannel) {
+        fetchTwitchStreams(currentChannel);
+      } else {
+        // If no channel is provided, fetch top 10 streams
+        fetchTwitchStreams();
       }
-    };
-
-    // Start updating uptime
-    const startUptimeUpdater = (startedAt: string) => {
-      const interval = setInterval(() => {
-        const startedTime = new Date(startedAt).getTime();
-        const currentTime = Date.now();
-        const uptimeInSeconds = Math.floor((currentTime - startedTime) / 1000);
-
-        setStreamData((prevStreamData) => ({
-          ...prevStreamData,
-          uptimeInSeconds: uptimeInSeconds,
-        }));
-      }, 1000);
-
-      return () => clearInterval(interval);
-    };
-
-    if (currentChannel) {
-      fetchAccessToken();
     }
-  }, [currentChannel]); // Dependency array includes currentChannel to re-run effect if currentChannel changes
+  }, [accessToken, currentChannel]);
+
+  // Start updating uptime
+  const startUptimeUpdater = (startedAt: string) => {
+    const interval = setInterval(() => {
+      const startedTime = new Date(startedAt).getTime();
+      const currentTime = Date.now();
+      const uptimeInSeconds = Math.floor((currentTime - startedTime) / 1000);
+
+      setStreamData((prevStreamData) => ({
+        ...prevStreamData,
+        uptimeInSeconds: uptimeInSeconds,
+      }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  };
 
   // Track the last non-neutral emotion
   const [lastNonNeutralSentiment, setLastNonNeutralSentiment] = useState('neutral');
@@ -271,7 +305,7 @@ export default function Home() {
       case 'surprise':
         return '😲';
       case 'neutral':
-        return '🫥';
+        return '😐';
       default:
         return '';
     }
@@ -295,11 +329,105 @@ export default function Home() {
     return (
       <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
         <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-          Welcome to the Twitch Chat Viewer
+          Measuring Emotions in Twitch Livestreams
         </h1>
         <p className="leading-7">
-          Please provide a channel name in the URL to view the chat and stream details.
+          Welcome to FeelsMoodMan, a comprehensive tool designed for streamers, viewers, and analysts to gain insights into <a href="https://www.twitch.tv/directory" className="font-medium text-primary underline underline-offset-4" target="_blank">Twitch</a> streams and chat interactions. This tool provides real-time emotion analysis to help you understand and engage with your Twitch audience better.
         </p>
+        <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Features
+        </h2>
+        <ul className="ml-6 list-disc">
+          <li>Sentiment Analysis: Get an immediate sense of the chat's mood with our sentiment analysis, categorizing messages into emotions such as joy, anger, sadness, fear, disgust, surprise, and neutral.</li>
+          <li>Engagement Tracking: Track chat activity over time to see when your audience is most engaged.</li>
+          <li>Emoji Representation: Visual representation of emotions with corresponding emojis for a quick and intuitive understanding.</li>
+        </ul>
+        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Model
+        </h2>
+        <p className="leading-7">
+          We utilize the <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base/" className="font-medium text-primary underline underline-offset-4" target="_blank">Emotion English DistilRoBERTa-base</a> model to classify emotions in English text data extracted from Twitch chat messages. This model predicts Ekman's 6 basic emotions, plus a neutral class: anger 🤬, disgust 🤢, fear 😨, joy 😀, neutral 😐, sadness 😭, and surprise 😲. It is a fine-tuned checkpoint of <a href="https://huggingface.co/distilroberta-base" className="font-medium text-primary underline underline-offset-4" target="_blank">DistilRoBERTa-base</a> trained on a diverse collection of text types from Twitter, Reddit, student self-reports, and utterances from TV dialogues.
+        </p>
+        <p className="leading-7">
+          To enhance our analysis, we replace Twitch emotes in messages before classification. For example, an emote like "4Head" would be replaced with "[laughing face with a wide grin]" for sentiment analysis.
+        </p>
+        <h2 className="border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Architecture
+        </h2>
+        <p className="leading-7">
+          Due to the large volume of chat messages, we opted for a client-side approach using <a href="https://huggingface.co/docs/transformers.js/index" className="font-medium text-primary underline underline-offset-4" target="_blank">Transformers.js</a> to run the model directly in the browser. We implemented this prototype as a <a href="https://nextjs.org/" className="font-medium text-primary underline underline-offset-4" target="_blank">Next.js</a> client-only Single Page Application (SPA). It integrates with Twitch chat using <a href="https://tmijs.com/" target="_blank">tmi.js</a> for real-time IRC connection in the browser. Frontend components are predominantly sourced from <a href="https://ui.shadcn.com/" target="_blank">shadcn/ui</a>, and <a href="https://recharts.org/" target="_blank">Recharts</a> is used for data visualization.
+        </p>
+        <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Usage
+        </h2>
+        <p className="leading-7">
+          To view the chat and details of a specific stream append the channel name as a URL parameter, for example <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+            https://feelsmoodman.chat/?channel={topStreams[0]?.userName || '<user_name>'}
+          </code>. If no channel name is provided, the tool defaults to showing the top 20 most viewed streams in English. Click on the channel name to view the stream or enter the URL in the search bar at the top.</p>
+        {topStreams.length > 0 && (
+          <>
+            <p className="leading-7">
+              Below is an example table showing the top 20 most viewed streams. Click on the channel name to view more details about the stream:
+            </p>
+            <div className="rounded-lg border overflow-x-auto h-96">
+              <Table className="shadow-sm">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Channel</TableHead>
+                    <TableHead>Tags</TableHead>
+                    <TableHead>Viewers</TableHead>
+                    <TableHead className="text-right">Uptime</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topStreams.map((stream, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium"><a href={`?channel=${stream.userName}`}>{stream.userName}</a></TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap">
+                          <Badge className="mr-2 mb-2">{stream.gameName}</Badge>
+                          {stream.tags.map((tag, tagIndex) => (
+                            <Badge key={tagIndex} variant="outline" className="mr-2 mb-2">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>{stream.viewerCount}</TableCell>
+                      <TableCell className="text-right">{formatUptime(stream.uptimeInSeconds)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+
+        <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Use Cases
+        </h2>
+        <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
+          For Streamers
+        </h3>
+        <ul className="ml-6 list-disc">
+          <li>Understand Audience Engagement: Track when your audience is most active and what kind of messages they are sending.</li>
+          <li>Improve Content: Use sentiment analysis to gauge reactions to different parts of your stream and adjust your content accordingly.</li>
+        </ul>
+        <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
+          For Advertisers</h3>
+        <ul className="ml-6 list-disc">
+          <li>Targeted Advertising: Identify popular streams and understand audience sentiment to target ads effectively.</li>
+          <li>Content Sponsorship: Analyze viewer engagement and sentiment to align sponsorships with popular streams.</li>
+        </ul>
+        <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Conclusion
+        </h2>
+        <p className="leading-7">
+          FeelsMoodMan is a powerful tool for streamers and advertisers looking to gain deeper insights into Twitch streams and chat dynamics. Whether you're a streamer aiming to improve content or an advertiser seeking to target ads effectively, our tool provides the functionality and information you need.</p>
+        <h2 className=" border-b pb-2 text-3xl font-semibold tracking-tight transition-colors">
+          Contributors
+        </h2>
+        <p className="leading-7">This prototype was developed by Jannik Wolf and Jan-Philipp Kiel for the <a href="https://sites.google.com/view/coinseminar24/home" className="font-medium text-primary underline underline-offset-4" target="_blank">2024 COIN seminar</a> at the University of Cologne.</p>
       </main>
     );
   }
@@ -309,7 +437,7 @@ export default function Home() {
     return (
       <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
         <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-          Loading stream data...
+          Fetching stream data from Twitch API...
         </h1>
       </main>
     );
@@ -332,9 +460,9 @@ export default function Home() {
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
       <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-        Twitch Chat of {streamData.userName || '...'}{' '}
-        {messages[messages.length - 1]?.sentiment !== 'neutral' 
-          ? getEmoji(messages[messages.length - 1]?.sentiment) 
+        {`${streamData.userName}'s Stream` || 'Loading stream data...'}{' '}
+        {messages[messages.length - 1]?.sentiment !== 'neutral'
+          ? getEmoji(messages[messages.length - 1]?.sentiment)
           : getEmoji(lastNonNeutralSentiment)
         }
       </h1>
@@ -367,7 +495,8 @@ export default function Home() {
         <div className="lg:w-1/2 lg:pl-2 mt-4 lg:mt-0">
           <div className="min-w-50 space-y-0 rounded-lg border bg-card text-card-foreground shadow-sm h-96 p-6 overflow-y-auto">
             {!ready || messages.length === 0 ? (
-              <p className="p-6">Building the text classification model in your browser...</p>
+              <p className="p-6">Building the text classification model in your browser...<br></br>
+              Connecting to the chat...</p>
             ) : (
               <>
                 {messages.slice(-100).reverse().map((msg, index) => (
