@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 // import { useParams } from 'next/navigation';
 import { EngagementAreaChart } from '@/components/engagement-area-chart';
 import { EmotionRadarChart } from '@/components/emotion-radar-chart';
-import { analyzeEmotions } from '@/utils/analytics';
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -14,6 +13,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 interface StreamData {
   viewerCount: number;
@@ -35,6 +41,41 @@ interface Message {
   firstMessage: boolean;
   returningChatter: boolean;
 }
+
+interface emotionSegments {
+  time: string;
+  joy: number;
+  anger: number;
+  sadness: number;
+  fear: number;
+  disgust: number;
+  surprise: number;
+  neutral: number;
+}
+
+interface EmotionData {
+  emotion: string;
+  total: number;
+  current: number;
+}
+
+const emotions = ["joy", "anger", "sadness", "fear", "disgust", "surprise"] as const;
+type Emotion = typeof emotions[number];
+
+const emotionLabels: Record<Emotion, string> = {
+  joy: "Joy 😀",
+  anger: "Anger 🤬",
+  sadness: "Sadness 😭",
+  fear: "Fear 😨",
+  disgust: "Disgust 🤢",
+  surprise: "Surprise 😲",
+};
+
+const initialEmotionData: EmotionData[] = emotions.map(emotion => ({
+  emotion: emotionLabels[emotion],
+  total: 0,
+  current: 0
+}));
 
 export default function Home() {
   // HINT: Unfortunately can't export SPA with dynamic params yet
@@ -85,7 +126,7 @@ export default function Home() {
 
       // Callback function for messages from worker thread
       const onMessageReceived = (e: MessageEvent) => {
-        console.log(e.data);
+        // console.log(e.data);
         switch (e.data.status) {
           case 'initiate':
             setReady(false);
@@ -268,37 +309,71 @@ export default function Home() {
     return () => clearInterval(interval);
   };
 
-  // Track the last non-neutral emotion
-  const [lastNonNeutralSentiment, setLastNonNeutralSentiment] = useState('neutral');
+  const [emotionSegments, setemotionSegments] = useState<emotionSegments[]>([]);
+  const [emotionData, setEmotionData] = useState<EmotionData[]>([]);
+  const [lastNonNeutralSentiment, setLastNonNeutralSentiment] = useState<string | null>(null);
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.sentiment !== 'neutral') {
       setLastNonNeutralSentiment(lastMessage.sentiment);
     }
-  }, [messages]);
 
-  // Get color based on sentiment
-  const getColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'joy':
-        return 'text-green-600';
-      case 'anger':
-        return 'text-red-600';
-      case 'sadness':
-        return 'text-blue-600';
-      case 'fear':
-        return 'text-orange-600';
-      case 'disgust':
-        return 'text-yellow-600';
-      case 'surprise':
-        return 'text-purple-600';
-      case 'neutral':
-        return 'text-gray-600';
-      default:
-        return 'text-black';
+    const aggregateemotionSegments = () => {
+      const sentimentMap: { [key: string]: emotionSegments } = {};
+
+      messages.forEach((msg) => {
+        // Get the local timezone offset in milliseconds
+        const localDate = new Date(msg.date.getTime() - (msg.date.getTimezoneOffset() * 60000));
+
+        // Convert to 'YYYY-MM-DDTHH:MM:SS.mmmZ' format in local time
+        const isoString = localDate.toISOString();
+
+        // Extract the required part 'YYYY-MM-DDTHH:MM'
+        const timeSegment = isoString.substring(0, 16);
+
+        if (!sentimentMap[timeSegment]) {
+          sentimentMap[timeSegment] = {
+            time: timeSegment,
+            joy: 0,
+            anger: 0,
+            sadness: 0,
+            fear: 0,
+            disgust: 0,
+            surprise: 0,
+            neutral: 0,
+          };
+        }
+
+        sentimentMap[timeSegment as string][msg.sentiment]++;
+      });
+
+      const data = Object.values(sentimentMap).sort((a, b) => (a.time > b.time ? 1 : -1));
+      setemotionSegments(data);
+      transformToEmotionData(data); // Transform after setting emotionSegments
+    };
+
+    const transformToEmotionData = (data: emotionSegments[]) => {
+      const transformedEmotionData = data.reduce((acc, data) => {
+        emotions.forEach(emotion => {
+          acc.find(e => e.emotion === emotionLabels[emotion])!.total += data[emotion];
+        });
+        return acc;
+      }, initialEmotionData);
+
+      const latestData = data[data.length - 1];
+      emotions.forEach(emotion => {
+        transformedEmotionData.find(e => e.emotion === emotionLabels[emotion])!.current = latestData[emotion];
+      });
+
+      setEmotionData(transformedEmotionData);
+    };
+
+    if (messages.length > 0) {
+      aggregateemotionSegments();
+      console.log(emotionData)
     }
-  };
+  }, [messages]);
 
   // Get emoji based on sentiment
   const getEmoji = (sentiment: string) => {
@@ -402,14 +477,14 @@ export default function Home() {
         </h2>
         <p className="leading-7">
           We utilize the <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base/" className="font-medium text-primary underline underline-offset-4" target="_blank">Emotion English DistilRoBERTa-base</a> model to classify emotions in Twitch chat messages. This model predicts Ekman's 6 basic emotions, plus a neutral class:</p>
-          <ul className="">
-            <li>🤬 anger</li>
-            <li>🤢 disgust</li>
-            <li>😨 fear</li>
-            <li>😀 joy</li>
-            <li>😐 neutral</li>
-            <li>😭 sadness</li>
-            <li>😲 surprise</li>
+          <ul>
+            <li className="joy">😀 joy</li>
+            <li className="anger">🤬 anger</li>
+            <li className="sadness">😭 sadness</li>
+            <li className="fear">😨 fear</li>
+            <li className="disgust">🤢 disgust</li>
+            <li className="surprise">😲 surprise</li>
+            <li className="neutral">😐 neutral</li>
           </ul>
         <p className="leading-7">  
           This fine-tuned checkpoint of <a href="https://huggingface.co/distilroberta-base" className="font-medium text-primary underline underline-offset-4" target="_blank">DistilRoBERTa-base</a> has been trained on a diverse collection of text types from Twitter, Reddit, student self-reports, and TV dialogues. To further enhance our analysis, we replace Twitch emotes (an integral part of the sentiment) in messages before classification. For example, an emote like "4Head" would be replaced with "[laughing face with a wide grin]".
@@ -465,7 +540,7 @@ export default function Home() {
     return (
       <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
         <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
-          The stream of {currentChannel} is currently offline.
+          {currentChannel}'s Stream is currently offline
         </h1>
         <p className="leading-7">
           Please check back later or try a different channel.
@@ -504,43 +579,53 @@ export default function Home() {
             title="Twitch Player"
           ></iframe>
           <div className="mt-4 flex justify-between">
-            <span className="text-left">Currently streaming {streamData.gameName} for {streamData.viewerCount} viewers.</span>
+            <span className="text-left">Streaming {streamData.gameName} for {streamData.viewerCount.toLocaleString()} viewers.</span>
             <span className="text-right" title={'Live since ' + new Date(streamData.startedAt).toLocaleString()}>Uptime: {formatUptime(streamData.uptimeInSeconds)}</span>
           </div>
         </div>
 
         <div className="lg:w-1/2 lg:pl-2 mt-4 lg:mt-0">
-          <div className="min-w-50 space-y-0 rounded-lg border bg-card text-card-foreground shadow-sm h-96 p-6 overflow-y-auto">
-            {!ready || messages.length === 0 ? (
-              <p className="p-6">Building the text classification model in your browser...<br></br>
-              Connecting to the chat...</p>
-            ) : (
-              <>
-                {messages.slice(-100).reverse().map((msg, index) => (
-                  <p key={index} className={getColor(msg.sentiment)}>
-                    <>
-                      [{msg.date.toLocaleTimeString('de-DE', { hour: 'numeric', minute: 'numeric'})}]{' '}
-                      {getEmoji(msg.sentiment)}{' '}
-                      <span className="font-bold">{msg.author}: </span>
-                      {msg.text}{' '}
-                      {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
-                        <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
-                      )}
-                    </>
-                  </p>
-                ))}
-              </>
-            )}
-          </div>
+          <Card className="h-96">
+            <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
+              <div className="grid flex-1 gap-1 text-center sm:text-left">
+                <CardTitle>Twitch Chat</CardTitle>
+                <CardDescription>
+                  Showing the last 50 messages
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pl-2 my-6 ml-6 overflow-y-auto overflow-x-hidden h-[62%]">
+              {!ready || messages.length === 0 ? (
+                <p>Building the text classification model in your browser...<br />
+                Connecting to the chat...</p>
+              ) : (
+                <>
+                  {messages.slice(-50).reverse().map((msg, index) => (
+                    <p key={index} className={msg.sentiment}>
+                      <>
+                        [{msg.date.toLocaleTimeString('de-DE', { hour: 'numeric', minute: 'numeric'})}]{' '}
+                        {getEmoji(msg.sentiment)}{' '}
+                        <span className="font-bold">{msg.author}: </span>
+                        {msg.text}{' '}
+                        {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
+                          <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
+                        )}
+                      </>
+                    </p>
+                  ))}
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row mt-4">
         <div className="lg:w-2/3 lg:pr-2">
-          <EngagementAreaChart />
+          <EngagementAreaChart data={emotionSegments} />
         </div>
         <div className="lg:w-1/3 lg:pl-2 mt-4 lg:mt-0">
-          <EmotionRadarChart data={analyzeEmotions(messages)} />
+          <EmotionRadarChart data={emotionData} />
         </div>
       </div>
     </main>

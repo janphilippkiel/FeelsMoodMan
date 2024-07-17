@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/chart"
 
 const chartConfig = {
-  previous: {
-    label: "Previous",
+  total: {
+    label: "Total",
     color: "hsl(var(--chart-1))",
   },
   current: {
@@ -32,7 +32,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 interface EmotionRadarChartProps {
-  data: { emotion: string, previous: number, current: number }[];
+  data: { emotion: string, total: number, current: number }[];
 }
 
 export function EmotionRadarChart(props: EmotionRadarChartProps) {
@@ -42,56 +42,43 @@ export function EmotionRadarChart(props: EmotionRadarChartProps) {
 
   return (
     <Card>
-      <CardHeader className="items-center pb-4">
-        <CardTitle>Emotion Radar Chart</CardTitle>
-        <CardDescription>
-          Showing emotions counted by category
-        </CardDescription>
+      <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
+        <div className="grid flex-1 gap-1 text-center sm:text-left">
+          <CardTitle>Emotion Data</CardTitle>
+          <CardDescription>
+            Showing emotion data for the current minute
+          </CardDescription>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="mx-auto  max-h-[250px]"
+          className="mx-auto max-h-[250px]"
         >
-          <RadarChart
-            data={data}
-            margin={{
-              top: -40,
-              bottom: -10,
-            }}
-          >
+          <RadarChart data={data}>
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent indicator="line" />}
             />
             <PolarAngleAxis dataKey="emotion" />
             <PolarGrid />
-            <Radar
-              dataKey="previous"
-              fill="var(--color-previous)"
+            {/* <Radar
+              dataKey="total"
+              fill="var(--color-total)"
               fillOpacity={0.6}
-              stroke="var(--color-previous)"
+              stroke="var(--color-total)"
               strokeWidth={2}
-            />
+            /> */}
             <Radar
               dataKey="current"
               fill="var(--color-current)"
-              fillOpacity={0.6}
-              stroke="var(--color-current)"
+              fillOpacity={0}
+              stroke="hsl(var(--card-foreground))"
               strokeWidth={2}
             />
-            <ChartLegend className="mt-8" content={<ChartLegendContent />} />
           </RadarChart>
         </ChartContainer>
       </CardContent>
-      <CardFooter className="flex-col gap-2 pt-4 text-sm">
-        <div className="flex items-center gap-2 font-medium leading-none">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-        </div>
-        <div className="flex items-center gap-2 leading-none text-muted-foreground">
-          January - June 2024
-        </div>
-      </CardFooter>
     </Card>
   )
 }
