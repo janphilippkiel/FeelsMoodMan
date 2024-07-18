@@ -46,7 +46,7 @@ export function EmotionRadarChart(props: EmotionRadarChartProps) {
         <div className="grid flex-1 gap-1 text-center sm:text-left">
           <CardTitle>Emotion Data</CardTitle>
           <CardDescription>
-            Showing emotion data for the current minute
+            Collecting six basic emotions from the current minute
           </CardDescription>
         </div>
       </CardHeader>
@@ -71,8 +71,8 @@ export function EmotionRadarChart(props: EmotionRadarChartProps) {
             /> */}
             <Radar
               dataKey="current"
-              fill="var(--color-current)"
-              fillOpacity={0}
+              fill="#ccc"
+              fillOpacity={(new Date().getSeconds() / 60)}
               stroke="hsl(var(--card-foreground))"
               strokeWidth={2}
             />

@@ -34,11 +34,11 @@ const chartConfig = {
   surprise: { label: "Surprise 😲", color: "#FF69B4" },
 } satisfies ChartConfig
 
-interface EngagementAreaChartProps {
+interface EmotionLineChartProps {
   data: { time: string, joy: number, anger: number, sadness: number, fear: number, disgust: number, surprise: number, neutral: number }[];
 }
 
-export function EngagementAreaChart(props: EngagementAreaChartProps) {
+export function EmotionLineChart(props: EmotionLineChartProps) {
   const { data } = props;
 
   return (
@@ -47,7 +47,7 @@ export function EngagementAreaChart(props: EngagementAreaChartProps) {
         <div className="grid flex-1 gap-1 text-center sm:text-left">
           <CardTitle>Emotion Time Segments</CardTitle>
           <CardDescription>
-            Showing emotion data for the last few minutes
+            Showing emotion data for every minute the client was running
           </CardDescription>
         </div>
       </CardHeader>
@@ -64,7 +64,7 @@ export function EngagementAreaChart(props: EngagementAreaChartProps) {
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="time"
-              tickLine={false}
+              tickLine={true}
               axisLine={false}
               tickMargin={8}
               tickFormatter={(value) => value.slice(-5)}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 // import { useParams } from 'next/navigation';
-import { EngagementAreaChart } from '@/components/engagement-area-chart';
+import { EmotionLineChart } from '@/components/emotion-line-chart';
 import { EmotionRadarChart } from '@/components/emotion-radar-chart';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +20,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { ChattersPieChart } from '@/components/chatters-pie-chart';
+import { EngagementLineChart } from '@/components/engagement-line-chart';
 
 interface StreamData {
   viewerCount: number;
@@ -31,7 +33,7 @@ interface StreamData {
 }
 
 interface Message {
-  author: string;
+  user: string;
   text: string;
   sentiment: string;
   score: number;
@@ -42,7 +44,7 @@ interface Message {
   returningChatter: boolean;
 }
 
-interface emotionSegments {
+interface EmotionSegments {
   time: string;
   joy: number;
   anger: number;
@@ -53,6 +55,14 @@ interface emotionSegments {
   neutral: number;
 }
 
+interface EngagementSegments {
+  time: string;
+  viewers: number;
+  chatters: { [key: string]: number };
+  totalChatters: number;
+  engagement: number;
+  sortedChatters: { user: string; messages: number; }[];
+}
 interface EmotionData {
   emotion: string;
   total: number;
@@ -61,6 +71,7 @@ interface EmotionData {
 
 const emotions = ["joy", "anger", "sadness", "fear", "disgust", "surprise"] as const;
 type Emotion = typeof emotions[number];
+type Sentiment = 'joy' | 'anger' | 'sadness' | 'fear' | 'disgust' | 'surprise' | 'neutral';
 
 const emotionLabels: Record<Emotion, string> = {
   joy: "Joy 😀",
@@ -138,7 +149,7 @@ export default function Home() {
             setMessages((prevMessages) => [
               ...prevMessages,
               {
-                author: e.data.author,
+                user: e.data.user,
                 text: e.data.message,
                 sentiment: e.data.sentiment.label,
                 score: e.data.sentiment.score,
@@ -286,6 +297,12 @@ export default function Home() {
 
       if (currentChannel) {
         fetchTwitchStreams(currentChannel);
+
+        const intervalId = setInterval(() => {
+          fetchTwitchStreams(currentChannel);
+        }, 60000); // Fetch every 60 seconds
+
+        return () => clearInterval(intervalId);
       } else {
         // If no channel is provided, fetch top 10 streams
         fetchTwitchStreams();
@@ -309,9 +326,10 @@ export default function Home() {
     return () => clearInterval(interval);
   };
 
-  const [emotionSegments, setemotionSegments] = useState<emotionSegments[]>([]);
+  const [emotionSegments, setEmotionSegments] = useState<EmotionSegments[]>([]);
   const [emotionData, setEmotionData] = useState<EmotionData[]>([]);
   const [lastNonNeutralSentiment, setLastNonNeutralSentiment] = useState<string | null>(null);
+  const [engagementSegments, setEngagementSegments] = useState<EngagementSegments[]>([]);
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -319,8 +337,10 @@ export default function Home() {
       setLastNonNeutralSentiment(lastMessage.sentiment);
     }
 
-    const aggregateemotionSegments = () => {
-      const sentimentMap: { [key: string]: emotionSegments } = {};
+    const aggregateSegments = () => {
+      const sentimentMap: { [key: string]: EmotionSegments } = {};
+      const engagementMap: { [key: string]: EngagementSegments } = {};
+      const userMessageCount: { [key: string]: number } = {};
 
       messages.forEach((msg) => {
         // Get the local timezone offset in milliseconds
@@ -345,15 +365,58 @@ export default function Home() {
           };
         }
 
-        sentimentMap[timeSegment as string][msg.sentiment]++;
+        sentimentMap[timeSegment][msg.sentiment as Sentiment]++;
+
+        // Count messages per user
+        const user = msg.user.toLowerCase();
+        userMessageCount[user] = (userMessageCount[user] || 0) + 1;
+
+        if (!engagementMap[timeSegment]) {
+          engagementMap[timeSegment] = {
+            time: timeSegment,
+            viewers: streamData.viewerCount,
+            chatters: {},
+            totalChatters: 0,
+            engagement: 0,
+            sortedChatters: [], // Placeholder value
+          };
+        }
+
+        // Update chatters count for the current user in the current segment
+        if (!engagementMap[timeSegment].chatters[user]) {
+            engagementMap[timeSegment].chatters[user] = 0;
+        }
+        engagementMap[timeSegment].chatters[user]++;
       });
 
+      // Calculate engagement for each time segment
+      Object.values(engagementMap).forEach(segment => {
+        segment.totalChatters = Object.keys(segment.chatters).length;
+        segment.engagement = (segment.totalChatters / segment.viewers) * 1000;
+      });
+
+      // Sort chatters separately and add to each segment
+      const segmentsWithSortedChatters = Object.values(engagementMap).map((segment) => {
+        const sortedChatters = Object.entries(segment.chatters)
+          .map(([user, messages]) => ({ user, messages }))
+          .sort((a, b) => b.messages - a.messages);
+        return {
+          ...segment,
+          sortedChatters,
+        };
+      });
+
+      const sortedSegments = segmentsWithSortedChatters.sort((a, b) => (a.time > b.time ? 1 : -1));
+
+      setEngagementSegments(sortedSegments);
+      // console.log(engagementSegments);
+
       const data = Object.values(sentimentMap).sort((a, b) => (a.time > b.time ? 1 : -1));
-      setemotionSegments(data);
+      setEmotionSegments(data);
       transformToEmotionData(data); // Transform after setting emotionSegments
     };
 
-    const transformToEmotionData = (data: emotionSegments[]) => {
+    const transformToEmotionData = (data: EmotionSegments[]) => {
       const transformedEmotionData = data.reduce((acc, data) => {
         emotions.forEach(emotion => {
           acc.find(e => e.emotion === emotionLabels[emotion])!.total += data[emotion];
@@ -370,8 +433,7 @@ export default function Home() {
     };
 
     if (messages.length > 0) {
-      aggregateemotionSegments();
-      console.log(emotionData)
+      aggregateSegments();
     }
   }, [messages]);
 
@@ -555,7 +617,7 @@ export default function Home() {
         {`${streamData.userName}'s Stream` || 'Loading stream data...'}{' '}
         {messages[messages.length - 1]?.sentiment !== 'neutral'
           ? getEmoji(messages[messages.length - 1]?.sentiment)
-          : getEmoji(lastNonNeutralSentiment)
+          : getEmoji(lastNonNeutralSentiment as Sentiment)
         }
       </h1>
       {streamData.gameName && streamData.tags && (
@@ -590,7 +652,7 @@ export default function Home() {
               <div className="grid flex-1 gap-1 text-center sm:text-left">
                 <CardTitle>Twitch Chat</CardTitle>
                 <CardDescription>
-                  Showing the last 50 messages
+                  Real-time emotion analysis of the chat messages
                 </CardDescription>
               </div>
             </CardHeader>
@@ -605,7 +667,7 @@ export default function Home() {
                       <>
                         [{msg.date.toLocaleTimeString('de-DE', { hour: 'numeric', minute: 'numeric'})}]{' '}
                         {getEmoji(msg.sentiment)}{' '}
-                        <span className="font-bold">{msg.author}: </span>
+                        <span className="font-bold">{msg.user}: </span>
                         {msg.text}{' '}
                         {['joy', 'surprise', 'anger', 'fear', 'disgust', 'sadness'].includes(msg.sentiment) && (
                           <span className="text-xs">(Score: {msg.score.toFixed(4)})</span>
@@ -620,12 +682,20 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row mt-4">
+      <div className="flex flex-col lg:flex-row">
         <div className="lg:w-2/3 lg:pr-2">
-          <EngagementAreaChart data={emotionSegments} />
+          <EmotionLineChart data={emotionSegments} />
         </div>
         <div className="lg:w-1/3 lg:pl-2 mt-4 lg:mt-0">
           <EmotionRadarChart data={emotionData} />
+        </div>
+      </div>
+      <div className="flex flex-col lg:flex-row">
+        <div className="lg:w-2/3 lg:pr-2">
+          <EngagementLineChart data={engagementSegments} />
+        </div>
+        <div className="lg:w-1/3 lg:pl-2 mt-4 lg:mt-0">
+          <ChattersPieChart data={engagementSegments} />
         </div>
       </div>
     </main>

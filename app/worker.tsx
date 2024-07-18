@@ -66,7 +66,7 @@ const connectToTwitch = (channel: string): void => {
         // Send the output back to the main thread
         globalThis.postMessage({
             status: 'complete',
-            author: context['display-name'],
+            user: context['display-name'],
             message: msg.trim(),
             sentiment: output[0],
             date: new Date(Number(context['tmi-sent-ts'])),
