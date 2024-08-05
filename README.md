@@ -2,6 +2,8 @@
 
 This is a Next.js prototype to measure the emotions in Twitch streams as part of the 2024 COIN seminar at the University of Cologne.
 
+[Demo](https://github.com/user-attachments/assets/37ce15b3-84f7-429f-b38d-25c81e7d5965)
+
 ## Development
 
 Create a local environment `.env.local` in the root folder and specify the credentials of the Twitch account to be used as a chatbot.
