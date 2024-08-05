@@ -112,6 +112,7 @@ export default function Home() {
   // State to track if the stream is offline or loading
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isError, setIsError] = useState<boolean>(false);
 
   // State to hold top 10 streams data
   const [topStreams, setTopStreams] = useState<StreamData[]>([]);
@@ -200,6 +201,7 @@ export default function Home() {
         });
 
         if (!response.ok) {
+          setIsError(true);
           throw new Error('Failed to obtain Twitch access token');
         }
 
@@ -234,7 +236,9 @@ export default function Home() {
             },
           });
 
+          // If the response is not ok, show a small page like the isOffline page at the bottom, name it isError
           if (!response.ok) {
+            setIsError(true);
             throw new Error('Failed to fetch Twitch streams');
           }
 
@@ -585,7 +589,21 @@ export default function Home() {
       </main>
     );
   }
-
+  
+  // Render error page if stream is offline, not when it turns offline
+  if (isError) {
+    return (
+      <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
+        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          Failed to fetch Stream {currentChannel}
+        </h1>
+        <p className="leading-7">
+          Either this user doesn't exist or the Twitch API is currently down. Please try again later.
+        </p>
+      </main>
+    );
+  }
+  
   // Render loading message while fetching stream data
   if (isLoading) {
     return (
@@ -597,8 +615,8 @@ export default function Home() {
     );
   }
 
-  // Render error page if stream is offline
-  if (isOffline) {
+  // Render error page if stream is offline, but not when it turns offline while watching
+  if (isOffline && engagementSegments !== null) {
     return (
       <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
         <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
@@ -610,6 +628,7 @@ export default function Home() {
       </main>
     );
   }
+
 
   return (
     <main className="container grid items-center gap-6 pb-8 pt-6 md:py-10">
